@@ -140,7 +140,7 @@ class InstagramScraper(object):
                     if ( self.max != 0 and iter >= self.max ):
                         break
                     else:
-                        f.write(json.dumps(item))
+                        f.write(json.dumps(item) + "\n")
                         if self.download_images:
                             future = executor.submit(self.download, item, dst)
                             future_to_item[future] = item
