@@ -22,12 +22,14 @@ class InstagramScraper(object):
 
     """InstagramScraper scrapes and downloads an instagram user's photos and videos"""
 
-    def __init__(self, usernames, login_user=None, login_pass=None, dst=None, quiet=False, max=0, retain_username=False):
+    def __init__(self, usernames, login_user=None, login_pass=None, dst=None, quiet=False, max=0, retain_username=False,
+                 download_images=True):
         self.usernames = usernames if isinstance(usernames, list) else [usernames]
         self.login_user = login_user
         self.login_pass = login_pass
         self.max = max
         self.retain_username = retain_username
+        self.download_images = download_images
         self.dst = './' if dst is None else dst
 
         # Controls the graphical output of tqdm
@@ -111,8 +113,9 @@ class InstagramScraper(object):
                 if 'profile_pic_url_hd' in user and '11906329_960233084022564_1448528159' not in user['profile_pic_url_hd']:
                     item = {'urls': [re.sub(r'/s\d{3,}x\d{3,}/', '/', user['profile_pic_url_hd'])]}
                     for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images", ncols=0, disable=self.quiet):
-                        future = executor.submit(self.download, item, dst)
-                        future_to_item[future] = item
+                        if self.download_images:
+                            future = executor.submit(self.download, item, dst)
+                            future_to_item[future] = item
 
                 if self.logged_in:
                     # Get the user's stories.
@@ -129,15 +132,18 @@ class InstagramScraper(object):
                             future_to_item[future] = item
 
             # Crawls the media and sends it to the executor.
-            iter = 0
-            for item in tqdm.tqdm(self.media_gen(username), desc='Searching {0} for posts'.format(username),
-                                unit=' media', disable=self.quiet):
-                iter = iter + 1
-                if ( self.max != 0 and iter >= self.max ):
-                    break
-                else:
-                    future = executor.submit(self.download, item, dst)
-                    future_to_item[future] = item
+            with open("{}/{}.jl".format(dst, username), "w") as f:
+                iter = 0
+                for item in tqdm.tqdm(self.media_gen(username), desc='Searching {0} for posts'.format(username),
+                                    unit=' media', disable=self.quiet):
+                    iter = iter + 1
+                    if ( self.max != 0 and iter >= self.max ):
+                        break
+                    else:
+                        f.write(json.dumps(item))
+                        if self.download_images:
+                            future = executor.submit(self.download, item, dst)
+                            future_to_item[future] = item
 
             # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
             # the above loop finishes.
